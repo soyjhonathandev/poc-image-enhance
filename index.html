@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mejorar con IA · POC</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #fff; --text: #16181d; --muted: #646b78; --line: #e3e6eb;
+    --accent: #3b5bdb; --accent-text: #fff; --danger-bg: #fdecec; --danger: #b42318;
+    --ok-bg: #e9f7ef; --ok: #17803d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #111317; --card: #1a1d23; --text: #eceef2; --muted: #9aa1ad; --line: #2b2f37;
+      --accent: #6d8bff; --accent-text: #0b0d12; --danger-bg: #3a1714; --danger: #ff9b8f;
+      --ok-bg: #12301f; --ok: #6fd69a; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 980px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+  .chip { font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line);
+    background: var(--card); color: var(--muted); }
+  .chip.bad { color: var(--danger); border-color: var(--danger); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+  .drop { display: grid; place-items: center; text-align: center; min-height: 180px; cursor: pointer;
+    border: 2px dashed var(--line); border-radius: 12px; color: var(--muted); padding: 16px; }
+  .drop.over { border-color: var(--accent); color: var(--accent); }
+  .drop img { max-height: 280px; max-width: 100%; border-radius: 8px; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 16px; }
+  button { font: inherit; border-radius: 8px; padding: 9px 16px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--card); color: var(--text); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .status { display: flex; gap: 10px; align-items: center; color: var(--muted); }
+  .spinner { width: 18px; height: 18px; border: 2px solid var(--line); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .error { margin-top: 16px; padding: 12px 14px; border-radius: 8px; background: var(--danger-bg); color: var(--danger); }
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px; }
+  @media (max-width: 640px) { .compare { grid-template-columns: 1fr; } }
+  figure { margin: 0; }
+  figcaption { font-weight: 600; margin-bottom: 8px; }
+  .frame { aspect-ratio: 1; background: repeating-conic-gradient(var(--line) 0 25%, transparent 0 50%) 0 0 / 20px 20px;
+    border: 1px solid var(--line); border-radius: 10px; display: grid; place-items: center; overflow: hidden; }
+  .frame img { width: 100%; height: 100%; object-fit: contain; cursor: zoom-in; }
+  .meta { color: var(--muted); font-size: 13px; margin-top: 12px; }
+  .ok { padding: 10px 14px; border-radius: 8px; background: var(--ok-bg); color: var(--ok); margin-top: 16px; }
+  details { margin-top: 12px; color: var(--muted); font-size: 13px; }
+  details pre { white-space: pre-wrap; background: var(--bg); padding: 10px; border-radius: 8px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Mejorar con IA</h1>
+  <p class="sub">Sube una foto de producto tomada con el celular. FLUX 3 Image Klein la convierte en foto de catálogo con fondo blanco sin tocar el producto.</p>
+  <div class="chips" id="chips"></div>
+
+  <section class="card">
+    <label class="drop" id="drop">
+      <input type="file" id="file" accept="image/*,.heic,.heif" hidden>
+      <div id="dropText"><strong>Arrastra una foto aquí</strong><br>o haz clic para elegirla (JPG, PNG, WEBP, HEIC)</div>
+      <img id="preview" alt="Foto original" hidden>
+    </label>
+
+    <div class="row">
+      <button class="primary" id="enhanceBtn" disabled>✨ Mejorar con IA</button>
+      <div class="status" id="status" hidden><div class="spinner"></div><span id="statusText"></span></div>
+    </div>
+    <div class="error" id="error" hidden></div>
+  </section>
+
+  <section class="card" id="resultCard" style="margin-top:20px" hidden>
+    <div class="compare">
+      <figure><figcaption>Original</figcaption><div class="frame"><img id="imgOriginal" alt="Original"></div></figure>
+      <figure><figcaption>Mejorada</figcaption><div class="frame"><img id="imgEnhanced" alt="Mejorada"></div></figure>
+    </div>
+    <div class="meta" id="meta"></div>
+    <div class="row">
+      <a id="downloadLink" download><button class="primary">Usar esta imagen (descargar)</button></a>
+      <button id="regenBtn">Regenerar</button>
+      <button id="discardBtn">Descartar</button>
+    </div>
+    <p class="meta">Revisa que forma, colores, logos y textos sean idénticos al producto real antes de usarla.</p>
+    <details id="promptBox" hidden><summary>Prompt expandido que usó el modelo</summary><pre id="promptText"></pre></details>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let imageData = null;
+let pollTimer = null;
+let startedAt = 0;
+
+async function loadConfig() {
+  try {
+    const c = await (await fetch('/api/config')).json();
+    const chips = [
+      [c.has_key ? 'API key configurada' : 'Falta BFL_API_KEY en .env', !c.has_key],
+      [`Resolución ${c.resolution}`], [`Proporción ${c.aspect_ratio}`], [`Timeout ${c.timeout_s} s`],
+      [c.endpoint.replace('https://', '')],
+    ];
+    $('chips').innerHTML = chips.map(([t, bad]) => `<span class="chip${bad ? ' bad' : ''}"></span>`).join('');
+    [...$('chips').children].forEach((el, i) => el.textContent = chips[i][0]);
+  } catch { /* the UI still works without the chips */ }
+}
+
+function pickFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    imageData = reader.result;
+    const img = $('preview');
+    img.onerror = () => { img.hidden = true; $('dropText').innerHTML = `<strong>${file.name}</strong><br>Sin vista previa en el navegador; se mostrará al procesar.`; $('dropText').hidden = false; };
+    img.onload = () => { img.hidden = false; $('dropText').hidden = true; };
+    img.src = imageData;
+    $('enhanceBtn').disabled = false;
+    hide('error');
+  };
+  reader.readAsDataURL(file);
+}
+
+function show(id) { $(id).hidden = false; }
+function hide(id) { $(id).hidden = true; }
+
+function setBusy(busy, text) {
+  $('enhanceBtn').disabled = busy || !imageData;
+  $('regenBtn').disabled = busy;
+  $('status').hidden = !busy;
+  if (text) $('statusText').textContent = text;
+}
+
+async function startEnhance() {
+  if (!imageData) return;
+  clearInterval(pollTimer);
+  hide('error'); hide('resultCard');
+  startedAt = Date.now();
+  setBusy(true, 'Enviando la foto…');
+  try {
+    const resp = await fetch('/api/enhance', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: imageData }),
+    });
+    const body = await resp.json();
+    if (!resp.ok) throw new Error(body.message || `HTTP ${resp.status}`);
+    pollTimer = setInterval(() => poll(body.id), 2000);
+  } catch (e) {
+    fail(e.message);
+  }
+}
+
+async function poll(id) {
+  try {
+    const job = await (await fetch(`/api/jobs/${id}`)).json();
+    const secs = Math.round((Date.now() - startedAt) / 1000);
+    if (job.status === 'processing') {
+      $('statusText').textContent = `${job.message} ${secs} s (suele tardar 10–30 s)`;
+      return;
+    }
+    clearInterval(pollTimer);
+    if (job.status === 'ready') return showResult(job);
+    fail(job.message || 'No se pudo generar la imagen.');
+  } catch (e) {
+    clearInterval(pollTimer);
+    fail(`Se perdió la conexión con el servidor local: ${e.message}`);
+  }
+}
+
+function showResult(job) {
+  setBusy(false);
+  $('imgOriginal').src = job.original_url;
+  $('imgEnhanced').src = job.enhanced_url;
+  $('downloadLink').href = job.enhanced_url;
+  $('downloadLink').download = job.enhanced_url.split('/').pop();
+  const cost = job.cost != null ? `${job.cost} créditos` : 'costo no informado';
+  $('meta').textContent = `Listo en ${job.duration_s} s · ${cost}`;
+  if (job.expanded_prompt) { $('promptText').textContent = job.expanded_prompt; show('promptBox'); } else hide('promptBox');
+  show('resultCard');
+  $('resultCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function fail(message) {
+  setBusy(false);
+  $('error').textContent = message;
+  show('error');
+}
+
+const drop = $('drop');
+['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', (e) => pickFile(e.dataTransfer.files[0]));
+$('file').addEventListener('change', (e) => pickFile(e.target.files[0]));
+$('enhanceBtn').addEventListener('click', startEnhance);
+$('regenBtn').addEventListener('click', startEnhance);
+$('discardBtn').addEventListener('click', () => hide('resultCard'));
+['imgOriginal', 'imgEnhanced'].forEach((id) => $(id).addEventListener('click', (e) => window.open(e.target.src, '_blank')));
+loadConfig();
+</script>
+</body>
+</html>
